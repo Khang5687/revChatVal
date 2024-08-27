@@ -2,6 +2,15 @@ from os import getenv
 import json
 from utils import load_cookies
 import requests
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Get Microsoft login credentials from environment variables
+microsoft_email = getenv("MICROSOFT_EMAIL")
+microsoft_password = getenv("MICROSOFT_PASSWORD")
+
 
 class Chatbot:
     """
@@ -16,7 +25,7 @@ class Chatbot:
                 "response_length": str, <- response_length: short (1365), medium (2730), long (4096)
                 "temperature": float,
                 "system_prompt": str,
-                "precaution": str,
+                "precaution": str, <- Message that would be added to the end of the prompt
                 "stream": bool,
             }
         """
@@ -87,14 +96,13 @@ class Chatbot:
             ordered_message = {
                 "id": "",
                 "role": message.get("role"),
-                "content": message.get("content"),
+                "content": message.get("content") + self.settings.get("precaution", ""),
                 "date": "",
             }
             ordered_messages.append(ordered_message)
 
         self.payload["messages"] = ordered_messages
 
-        print(self.payload)
         # Make the POST request
         is_streaming = self.settings.get("stream", False)
         api_response = self.session.post(
@@ -104,32 +112,35 @@ class Chatbot:
             stream=is_streaming,
         )
 
-        if api_response.status_code != 200:
-            response = {"status": "error", "data": api_response.text}
-        else:
-            # Parse the response
-            data = [
-                json.loads(line)
-                for line in api_response.text.strip().split("\n")
-                if line.strip()
-            ]
+        if api_response.status_code == 200:
+            try:
+                # Parse the response
+                data = [
+                    json.loads(line)
+                    for line in api_response.text.strip().split("\n")
+                    if line.strip()
+                ]
 
-            # Filter out empty dictionaries
-            filtered_data = [entry for entry in data if entry]
+                # Filter out empty dictionaries
+                filtered_data = [entry for entry in data if entry]
 
-            # Extract title, role, and concatenate content
-            title = filtered_data[0]["history_metadata"]["title"]
-            role = filtered_data[0]["choices"][0]["messages"][0]["role"]
-            content = " ".join(
-                message["content"]
-                for entry in filtered_data
-                for choice in entry["choices"]
-                for message in choice["messages"]
-            )
+                # Extract title, role, and concatenate content
+                title = filtered_data[0]["history_metadata"]["title"]
+                role = filtered_data[0]["choices"][0]["messages"][0]["role"]
+                content = "".join(
+                    message["content"]
+                    for entry in filtered_data
+                    for choice in entry["choices"]
+                    for message in choice["messages"]
+                )
 
-            # Initialize the final dictionary
-            result = {"title": title, "role": role, "content": content}
+                # Initialize the final dictionary
+                result = {"title": title, "role": role, "content": content}
 
-            response = {"status": "success", "data": result}
+                response = {"status": 200, "content": result}
+            except:
+                response = {"status": 500, "content": "Error parsing response, could be due to Internal Server Error"}
+        elif api_response.status_code != 200:
+            response = {"status": 400, "content": api_response.text}
 
         return response
