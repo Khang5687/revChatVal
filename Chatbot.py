@@ -139,8 +139,74 @@ class Chatbot:
 
                 response = {"status": 200, "content": result}
             except:
-                response = {"status": 500, "content": "Error parsing response, could be due to Internal Server Error"}
+                response = {
+                    "status": 500,
+                    "content": "Error parsing response, could be due to Internal Server Error",
+                }
         elif api_response.status_code != 200:
             response = {"status": 400, "content": api_response.text}
 
         return response
+
+    def get_streaming_response(self, messages: list):
+        """Get the response from Val's API endpoint
+
+        Args:
+            message (list):
+            [{"role": str, "content": str}]
+
+        Yields:
+            dict: Streamed response from the API, includes title, role, and content
+        """
+        api_endpoint = "/history/generate"
+
+        # Populate the message list before appending to payload
+        if type(messages) != list:
+            return None
+
+        ordered_messages = []
+        for message in messages:
+            ordered_message = {
+                "id": "",
+                "role": message.get("role"),
+                "content": message.get("content") + self.settings.get("precaution", ""),
+                "date": "",
+            }
+            ordered_messages.append(ordered_message)
+
+        self.payload["messages"] = ordered_messages
+
+        # Make the POST request
+        is_streaming = self.settings.get("stream", False)
+        api_response = self.session.post(
+            self.url + api_endpoint,
+            headers=self.headers,
+            json=self.payload,
+            stream=is_streaming,
+        )
+
+        if api_response.status_code == 200:
+            try:
+                # Parse the response line by line
+                for line in api_response.iter_lines():
+                    if line:
+                        entry = json.loads(line.decode("utf-8").strip())
+                        if entry:
+                            title = entry["history_metadata"]["title"]
+                            role = entry["choices"][0]["messages"][0]["role"]
+                            for choice in entry["choices"]:
+                                for message in choice["messages"]:
+                                    content = message["content"]
+                                    result = {
+                                        "title": title,
+                                        "role": role,
+                                        "content": content,
+                                    }
+                                    yield {"status": 200, "content": result}
+            except:
+                yield {
+                    "status": 500,
+                    "content": "Error parsing response, could be due to Internal Server Error",
+                }
+        else:
+            yield {"status": 400, "content": api_response.text}
