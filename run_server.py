@@ -47,6 +47,7 @@ async def generate_text(request: GenerateRequest):
 
 @app.post("/api/stream")
 async def stream_text(request: GenerateRequest):
+    print(request)
     if not request.settings or not request.messages:
         raise HTTPException(status_code=400, detail="Missing arguments")
     if not isinstance(request.settings, dict) or not isinstance(request.messages, list):
@@ -62,9 +63,10 @@ async def stream_text(request: GenerateRequest):
 
     chatbot = Chatbot(settings)
     payload = request.messages
-
     def event_stream():
         for response in chatbot.get_streaming_response(payload):
+            if response["status"] != 200:
+                raise HTTPException(status_code=500, detail="Internal Server Error")
             yield json.dumps(response) + "\n"
 
     return StreamingResponse(event_stream(), media_type="application/json")
