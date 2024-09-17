@@ -7,7 +7,8 @@ A FastAPI server for reverse engineered RMIT Val's API
 - Download and Install [Python](https://python.org)
 - Clone the repository:
 ```bash
-git clone https://github.com/Khang5687/revChatVal/tree/fastapi
+git clone https://github.com/Khang5687/revChatVal.git
+git checkout fastapi
 cd revChatVal
 ```
 - Install dependencies
