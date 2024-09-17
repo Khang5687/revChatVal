@@ -96,7 +96,8 @@ class Chatbot:
             ordered_message = {
                 "id": "",
                 "role": message.get("role"),
-                "content": message.get("content") + self.settings.get("precaution", ""),
+                "content": message.get("content") or ""
+                + (self.settings.get("precaution") or ""),
                 "date": "",
             }
             ordered_messages.append(ordered_message)
